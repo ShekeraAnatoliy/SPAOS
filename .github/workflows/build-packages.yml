@@ -1,0 +1,60 @@
+name: Build RPM and DEB Packages
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  build-packages:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Install dependencies
+      run: |
+        sudo apt update
+        sudo apt install -y rpm dpkg-dev build-essential fakeroot
+
+    - name: Prepare RPM build environment
+      run: |
+        mkdir -p ~/rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+        cp ./count_files.sh ~/rpmbuild/SOURCES/
+        cp ./count_files.spec ~/rpmbuild/SPECS/
+
+    - name: Build RPM package
+      run: |
+        rpmbuild -ba ~/rpmbuild/SPECS/count_files.spec
+        cp ~/rpmbuild/RPMS/noarch/*.rpm .
+
+    - name: Prepare DEB build environment
+      run: |
+        mkdir -p deb-package/DEBIAN deb-package/usr/local/bin
+        cp ./count_files.sh deb-package/usr/local/bin/
+        chmod 755 deb-package/usr/local/bin/count_files.sh
+        echo "Package: count-files
+Version: 1.0
+Section: utils
+Priority: optional
+Architecture: all
+Essential: no
+Maintainer: Anatolii shektoly@gmail.com
+Description: Bash script to count files in /etc
+ Simple Bash script to count files in the /etc directory." > deb-package/DEBIAN/control
+
+    - name: Build DEB package
+      run: |
+        dpkg-deb --build deb-package
+        mv deb-package.deb count-files.deb
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: packages
+        path: |
+          *.rpm
+          *.deb
+
